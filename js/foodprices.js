@@ -16,7 +16,7 @@ function initMap(){
     return map;
 }
 
-function addCountriesToMap(results){
+function addCountriesToMap(data){
     
     var world_style = {
         color: '#fff',
@@ -25,42 +25,48 @@ function addCountriesToMap(results){
         opacity:0.8,
         weight:1
     };
-    
-    var world = topojson.feature(un_world, un_world.objects.un_world);
+
+    let countriesLookup = {}
+
+    data.forEach(function(d){
+        countriesLookup[d['#country+code']] =  d['#country+url']
+    });
+
+    world = topojson.feature(world, world.objects.geom);
 
     for(i = world.features.length-1; i >= 0; i--){
-        if( $.inArray(world.features[i].properties.ADM0_CODE, results) === -1 ){
+        if(world.features[i].properties.ISO3 in countriesLookup == false){
             world.features.splice(i, 1);
         }        
     }
-    
     var overlay_world = L.geoJson(world.features,{
         style:world_style,
         onEachFeature: function(feature, layer){
             layer.on('click', function (e) {
-                initCountry(feature.properties.ADM0_CODE,feature.properties.ADM0_NAME,embedded);
+                countryURL = countriesLookup[feature.properties.ISO3]
+                initCountry(feature.properties.ISO3,feature.properties.NAME,countryURL);
             });
         }  
     }).addTo(map);    
 }
 
-function initCountry(adm0_code,adm0_name){
+function initCountry(adm0_code,adm0_name,adm0_URL){
 
-    makeEmbedURL(adm0_code,'','','','');
-    if(embedded!=='true'){
+    //makeEmbedURL(adm0_code,'','','','');
+    //if(embedded!=='true'){
         var targetHeader = '#modal-header-content';
         $('#modal-body').html('Loading...');       
         $('#wfpModal').modal('show');        
-    } else {
+    /*} else {
         var targetHeader = '#header';
         $('#map').hide();
         $('#charts').show();
         $('#header').show();
-    }
+    }*/
     var html = '<h4>'+adm0_name+' Product Price since 2010</h4><p>';
-    if(embedded ==='true'){
+    /*if(embedded ==='true'){
         html += '<a id="maplink" href="">Map</a> > ';
-    }
+    }*/
     html +=adm0_name+'</p>';
     $(targetHeader).html(html);
     $('#maplink').click(function(event){
@@ -68,66 +74,75 @@ function initCountry(adm0_code,adm0_name){
        backToMap();
     });
     
-    getProductsByCountryID(adm0_code,adm0_name);
+    getProductsByCountryID(adm0_code,adm0_name,adm0_URL);
 }
 
-function generateSparklines(results,adm0_code,adm0_name){
+function generateSparklines(results,adm0_code,adm0_name,adm0_URL){
     
-    if(embedded!=='true'){
+    //if(embedded!=='true'){
         var targetDiv = '#modal-body';
-    } else {
+    /*} else {
         var targetDiv = '#charts';
-    }
+    }*/
     
     var numProd = 0;
     var curProd = '';
     var curUnit = '';
     var topMonth = 0;
     var html='<div class="row">';
-
-    results.forEach(function(e){
-        if(e.mp_year*12+e.month_num*1>topMonth) {
-            topMonth = e.mp_year*12+e.month_num*1;
+    results.forEach(function(d,i){
+        year = parseInt(d['#date'].substr(0,4));
+        month = parseInt(d['#date'].substr(5,7));
+        results[i].monthValue = year*12+month*1;
+        if(year*12+month*1>topMonth) {
+            topMonth = year*12+month*1;
         }
-        if(e.cm_id!==curProd || e.um_id!==curUnit){
+        if(d['#item+name']!==curProd || d['#item+unit']!==curUnit){
             numProd++;
-            curProd = e.cm_id;
-            curUnit = e.um_id;
+            curProd = d['#item+name'];
+            curUnit = d['#item+unit'];
             if(numProd>1 && numProd%4===1){
                 html+= '</div><div class="row">';
             }
-            html+='<div id="product_' + e.cm_id + '_' + e.um_id + '" class="productsparkline col-xs-3"><p>' + e.cm_name + ' per ' + e.um_name + '</p></div>';
+            html+='<div id="product_' + numProd + '" dataItem="'+d['#item+name']+'" dataUnit="'+d['#item+unit']+'" class="productsparkline col-xs-3"><p>' + d['#item+name'] + ' per ' + d['#item+unit'] + '</p></div>';
         }
     });
 
     html+='</div>';
-    
     $(targetDiv).html(html);
     var curProd = '';
     var curUnit = '';
     var data=[];
-    results.forEach(function(e){
-        if(e.cm_id!==curProd || e.um_id !==curUnit){
+    numProd = 0;
+    results.forEach(function(d){
+        if(d['#item+name']!==curProd || d['#item+unit']!==curUnit){
             if(data!==[]){
-                generateSparkline(curProd,curUnit,data,topMonth);
-                $('#product_' + e.cm_id + '_' + e.um_id).on('click',function(){
-                    getProductDataByCountryID(adm0_code,e.cm_id,e.um_id,adm0_name,e.cm_name,e.um_name,'','');
+                generateSparkline(numProd,data,topMonth);
+                $('#product_' + numProd).on('click',function(){
+                    getProductDataByCountryID(adm0_URL,d['#item+name'],d['#item+unit'],adm0_name,'','');
                 });
             }
+            numProd++
             data = [];
-            curProd = e.cm_id;
-            curUnit = e.um_id;
+            curProd = d['#item+name'];
+            curUnit = d['#item+unit'];
         }
-        var datum = {y:e.avg,x:e.mp_year*12+e.month_num};
+        var datum = {y:d['#value+average'],x:d.monthValue};
         data.push(datum);
     });
-    generateSparkline(curProd,curUnit,data,topMonth);
+    generateSparkline(numProd,data,topMonth);
 }
 
-function generateSparkline(prodID,unitID,data,topMonth){
-    
-    var svg = d3.select('#product_'+prodID+'_'+unitID).append('svg').attr('width',$('#product_'+prodID+'_'+unitID).width()).attr('height', '50px');
-    var x = d3.scale.linear().domain([2010*12,topMonth]).range([0, $('#product_'+prodID+'_'+unitID).width()]);
+function generateSparkline(numProd,data,topMonth){
+    console.log(numProd);
+    console.log(data)
+    console.log(topMonth);
+    data = data.sort(function(a,b){
+        return a.monthValue - b.monthValue;
+    });
+    var svg = d3.select('#product_'+numProd).append('svg').attr('width',$('#product_'+numProd).width()).attr('height', '50px');
+
+    var x = d3.scale.linear().domain([2010*12,topMonth]).range([0, $('#product_'+numProd).width()]);
     //var y = d3.scale.linear().domain([d3.max(data,function(d){return d.y;}),d3.min(data,function(d){return d.y;})]).range([0, 50]);
     var y = d3.scale.linear().domain([d3.max(data,function(d){return d.y;})*1.1,0]).range([0, 50]);
 
@@ -160,40 +175,39 @@ function generateSparkline(prodID,unitID,data,topMonth){
             svg.append('path').attr('d', yearLine(dataLine)).attr('class', 'sparkyearline');
         }
     }
-    
     svg.append('path').attr('d', line(data)).attr('class', 'sparkline');
 }
 
 function crossfilterData(data){
     
-    data.forEach(function(e){
-        e.date = new Date(e.mp_year, e.month_num-1, 1);
+    data.forEach(function(d){
+        d.date = new Date(d['#date']);
     });       
     
     var cf = crossfilter(data);
     
     cf.byDate = cf.dimension(function(d){return d.date;});
-    cf.byAdm1 = cf.dimension(function(d){return d.adm1_name;});
-    cf.byMkt = cf.dimension(function(d){return d.mkt_name;});
+    cf.byAdm1 = cf.dimension(function(d){return d['#adm1+name'];});
+    cf.byMkt = cf.dimension(function(d){return d['#loc+market+name'];});
     
-    cf.groupByDateSum = cf.byDate.group().reduceSum(function(d) {return d.mp_price;});
+    cf.groupByDateSum = cf.byDate.group().reduceSum(function(d) {return d['#value+usd'];});
     cf.groupByDateCount = cf.byDate.group();
-    cf.groupByAdm1Sum = cf.byAdm1.group().reduceSum(function(d) {return d.mp_price;});
+    cf.groupByAdm1Sum = cf.byAdm1.group().reduceSum(function(d) {return d['#value+usd'];});
     cf.groupByAdm1Count = cf.byAdm1.group();
-    cf.groupByMktSum = cf.byMkt.group().reduceSum(function(d) {return d.mp_price;});
+    cf.groupByMktSum = cf.byMkt.group().reduceSum(function(d) {return d['#value+usd'];});
     cf.groupByMktCount = cf.byMkt.group(); 
     return cf;
 }
 
 function generateChartView(cf,adm0,prod,unit,adm0_code){
-    makeEmbedURL(adm0_code,prod,unit,'','');
-    if(embedded!=='true'){
+    //makeEmbedURL(adm0_code,prod,unit,'','');
+    //if(embedded!=='true'){
         var targetDiv = '#modal-body';
         var targetHeader = '#modal-header-content';
-    } else {
+    /*} else {
         var targetDiv = '#charts';
         var targetHeader = '#header';
-    }
+    }*/
 
     curLevel = 'adm0';
     
@@ -204,9 +218,9 @@ function generateChartView(cf,adm0,prod,unit,adm0_code){
     var title = 'Price of ' + prod + ' per ' + unit + ' in '+adm0;
     var html = '<h4>'+title+'</h4><p>';
     
-    if(embedded ==='true'){
+    /*if(embedded ==='true'){
         html += '<a id="maplink" href="">Map</a> > ';
-    }
+    }*/
     html +='<a id="adm0link" href="">'+adm0+'</a> > ' + prod + '</p>';
     $(targetHeader).html(html);
     
@@ -226,23 +240,23 @@ function generateChartView(cf,adm0,prod,unit,adm0_code){
 }
 
 function generateADMChartView(cf,adm1,prod,unit,adm0,adm0_code){
-    makeEmbedURL(adm0_code,prod,unit,adm1,'');
-    if(embedded!=='true'){
+    //makeEmbedURL(adm0_code,prod,unit,adm1,'');
+    //if(embedded!=='true'){
         var targetDiv = '#modal-body';
         var targetHeader = '#modal-header-content';
-    } else {
+    /*} else {
         var targetDiv = '#charts';
         var targetHeader = '#header';
-    }
+    }*/
     
     curLevel = 'adm1';
     
     var title = 'Price of ' + prod + ' per ' + unit + ' in '+adm1;    
     var html = '<h4>'+title+'</h4><p>';
     
-    if(embedded ==='true'){
+    /*if(embedded ==='true'){
         html += '<a id="maplink" href="">Map</a> > ';
-    }
+    }*/
     html +='<a id="adm0link" href="">'+adm0+'</a> > <a id="prodlink" href="">' + prod + '</a> > ' + adm1 + '</p>';
     $(targetHeader).html(html);
     $(targetDiv).html('<div class="row"><div id="nav_chart" class="col-xs-12"></div></div><div class="row"><div id="main_chart" class="col-xs-12"></div></div><div class="row"><div id="drilldown_chart" class="col-xs-12"></div></div>');
@@ -270,14 +284,14 @@ function generateADMChartView(cf,adm1,prod,unit,adm0,adm0_code){
 }
 
 function generateMktChartView(cf,mkt,prod,unit,adm0,adm0_code,adm1){
-    makeEmbedURL(adm0_code,prod,unit,adm1,mkt);
-    if(embedded!=='true'){
+    //makeEmbedURL(adm0_code,prod,unit,adm1,mkt);
+    //if(embedded!=='true'){
         var targetDiv = '#modal-body';
         var targetHeader = '#modal-header-content';
-    } else {
+    /*} else {
         var targetDiv = '#charts';
         var targetHeader = '#header';
-    }
+    }*/
     
     curLevel = 'mkt';
     
@@ -285,9 +299,9 @@ function generateMktChartView(cf,mkt,prod,unit,adm0,adm0_code,adm1){
     
     var html = '<h4>'+title+'</h4><p>';
     
-    if(embedded ==='true'){
+    /*if(embedded ==='true'){
         html += '<a id="maplink" href="">Map</a> > ';
-    }
+    }*/
     
     html +='<a id="adm0link" href="">'+adm0+'</a> > <a id="prodlink" href="">' + prod + '</a> > <a id="adm1link" href="">' + adm1 + '</a> > ' + mkt + '</p>';
     $(targetHeader).html(html);
@@ -331,7 +345,7 @@ function getAVG(sum,count){
 }
 
 function generateTimeCharts(data,cf,title){
-    
+    console.log(data);
     $('#nav_chart').html('<p>Select a portion of the chart below to zoom in the data.</p><p><span id="brush6" class="setbrush">Last 6 months</span><span id="brush12" class="setbrush">1 year</span><span id="brush60" class="setbrush">5 years</span></p>');
 
     $('#brush6').click(function(){
@@ -766,41 +780,38 @@ function backToMap(){
 }
  
 function getCountryIDs(){
-    
-    var sql = 'SELECT distinct adm0_id FROM "' + datastoreID + '"';
 
-    var data = encodeURIComponent(JSON.stringify({sql: sql}));
+
+    let countryDataURL = 'https://feature.data-humdata-org.ahconu.org/dataset/c984f985-7cad-4f83-8bf1-6fd18cca7d84/resource/3b8d9122-6ff3-4845-aad3-f0d932d88d26/download/wfp_countries_global.csv'
+    let proxyURL = 'https://proxy.hxlstandard.org/data.json?dest=data_edit&strip-headers=on&url='+countryDataURL
 
     $.ajax({
-      type: 'POST',
+      type: 'GET',
       dataType: 'json',
-      url: 'https://data.hdx.rwlabs.org/api/3/action/datastore_search_sql',
-      data: data,
+      url: proxyURL,
       success: function(data) {
-          var results = [];
-          data.result.records.forEach(function(e){
-              results.push(e.adm0_id);
-          });
-          addCountriesToMap(results);
+          data = hxlProxyToJSON(data)
+          addCountriesToMap(data);
       }
-    });     
+    });
 }
 
-function getProductDataByCountryID(adm0_code,cm_id,um_id,adm0_name,cm_name,um_name,adm1_name,mkt_name){
-    var sql = 'SELECT adm1_id,adm1_name,mkt_id,mkt_name, cast(mp_month as double precision) as month_num, mp_year, mp_price FROM "'+datastoreID+'" where adm0_id='+adm0_code+' and cm_id='+cm_id+' and um_id='+um_id;
+function getProductDataByCountryID(adm0_URL,cm_id,um_id,adm0_name,adm1_name,mkt_name){
+    //var sql = 'SELECT adm1_id,adm1_name,mkt_id,mkt_name, cast(mp_month as double precision) as month_num, mp_year, mp_price FROM "'+datastoreID+'" where adm0_id='+adm0_code+' and cm_id='+cm_id+' and um_id='+um_id;
 
-    var data = encodeURIComponent(JSON.stringify({sql: sql}));
-
+    //var data = encodeURIComponent(JSON.stringify({sql: sql}));
+    let hxlProxyURL = 'https://proxy.hxlstandard.org/data.json?dest=data_edit&filter01=select&select-query01-01=%23item%2Bname%3D'+encodeURIComponent(cm_id)+'&filter02=select&select-query02-01=%23item%2Bunit%3D'+encodeURIComponent(um_id)+'&filter03=cut&cut-include-tags03=%23date%2C%23adm1%2C%23adm2%2C%23loc%2C%23value&filter04=sort&sort-tags04=%23date&strip-headers=on&url='+encodeURIComponent(adm0_URL);
     $.ajax({
-      type: 'POST',
+      type: 'GET',
       dataType: 'json',
-      url: 'https://data.hdx.rwlabs.org/api/3/action/datastore_search_sql',
-      data: data,
+      url: hxlProxyURL,
       success: function(data) {
+            data = hxlProxyToJSON(data);
+            var cf = crossfilterData(data);
 
-           var cf = crossfilterData(data.result.records); 
+
            if(adm1_name===''){
-              generateChartView(cf,adm0_name,cm_name,um_name,adm0_code); 
+              generateChartView(cf,adm0_name,cm_id,um_id,adm0_URL); 
            } else if (mkt_name===''){
               generateADMChartView(cf,adm1_name,cm_name,um_name,adm0_name,adm0_code);  
            } else {
@@ -811,24 +822,26 @@ function getProductDataByCountryID(adm0_code,cm_id,um_id,adm0_name,cm_name,um_na
     });    
 }
 
-function getProductsByCountryID(adm0_code,adm0_name){
+function getProductsByCountryID(adm0_code,adm0_name,adm0_URL){
     
-    var sql = 'SELECT cm_id, cm_name, um_id, um_name, avg(cast(mp_month as double precision)) as month_num, mp_year, avg(mp_price) FROM "' + datastoreID + '" where adm0_id=' + adm0_code + ' and mp_year>2009 group by cm_id, cm_name, um_name, um_id, mp_month, mp_year order by cm_id, um_id, mp_year, month_num';    
+    //var sql = 'SELECT cm_id, cm_name, um_id, um_name, avg(cast(mp_month as double precision)) as month_num, mp_year, avg(mp_price) FROM "' + datastoreID + '" where adm0_id=' + adm0_code + ' and mp_year>2009 group by cm_id, cm_name, um_name, um_id, mp_month, mp_year order by cm_id, um_id, mp_year, month_num';    
 
-    var data = encodeURIComponent(JSON.stringify({sql: sql}));
+    //var data = encodeURIComponent(JSON.stringify({sql: sql}));
+
+    let hxlProxyURL = 'https://proxy.hxlstandard.org/data.json?dest=data_edit&filter01=count&count-tags01=%23item%2Bname%2C%23date%2Citem%2Bunit&count-type01-01=average&count-pattern01-01=%23value%2Busd&count-header01-01=Count&count-column01-01=%23value%2Baverage&filter02=sort&sort-tags02=%23item%2Bname%2C%23item%2Bunit&strip-headers=on&url='+adm0_URL;
 
     $.ajax({
-      type: 'POST',
+      type: 'GET',
       dataType: 'json',
-      url: 'https://data.hdx.rwlabs.org/api/3/action/datastore_search_sql',
-      data: data,
+      url: hxlProxyURL,
       success: function(data) {
-          generateSparklines(data.result.records,adm0_code,adm0_name);
+            data = hxlProxyToJSON(data,false);
+            generateSparklines(data,adm0_code,adm0_name,adm0_URL);
       }
     });     
 }
 
-function getNameParams(adm0,prod,unit,adm1,mkt){
+/*function getNameParams(adm0,prod,unit,adm1,mkt){
     
     if(prod=='Not found' && unit =='Not found'){
             var sql = 'SELECT distinct adm0_name FROM "'+datastoreID+'" where adm0_id='+adm0;
@@ -954,7 +967,7 @@ function initembed(){
         $('#header').show();        
         getNameParams(adm0,prod,unit,adm1,mkt);
     }
-}
+}*/
 
 function initHDX(){
     var embed='?embedded=true';
@@ -981,15 +994,43 @@ function initHDX(){
     });     
 }
 
-var datastoreID = 'b5b850a5-76da-4c33-a410-fd447deac042';
-var url = 'http://127.0.0.1:8000/index.html';
-var embedded = (parseGet('embedded'));
-if(embedded ==='true'){
-    initembed();
-} else {
-    initHDX();
+function hxlProxyToJSON(input,headers){
+    var output = [];
+    var keys=[]
+    input.forEach(function(e,i){
+        if(i==0){
+            e.forEach(function(e2,i2){
+                var parts = e2.split('+');
+                var key = parts[0]
+                if(parts.length>1){
+                    var atts = parts.splice(1,parts.length);
+                    atts.sort();                    
+                    atts.forEach(function(att){
+                        key +='+'+att
+                    });
+                }
+                keys.push(key);
+            });
+        } else {
+            var row = {};
+            e.forEach(function(e2,i2){
+                row[keys[i2]] = e2;
+            });
+            output.push(row);
+        }
+    });
+    return output;
 }
 
+//var datastoreID = 'b5b850a5-76da-4c33-a410-fd447deac042';
+var url = 'http://127.0.0.1:8000/index.html';
+//var embedded = (parseGet('embedded'));
+/*if(embedded ==='true'){
+    initembed();
+} else {
+    
+}*/
+initHDX();
 var curLevel = '';
 
 var map = initMap();
