@@ -1,7 +1,7 @@
 function initMap(){
     
     var base_osm = L.tileLayer(
-            'http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
             attribution: '&copy; OpenStreetMap contributors'}
     );
           
