@@ -179,11 +179,11 @@ function crossfilterData(data){
     cf.byAdm1 = cf.dimension(function(d){return d['#adm1+name'];});
     cf.byMkt = cf.dimension(function(d){return d['#loc+market+name'];});
     
-    cf.groupByDateSum = cf.byDate.group().reduceSum(function(d) {return d['#value+usd'];});
+    cf.groupByDateSum = cf.byDate.group().reduceSum(function(d) {return d['#value'];});
     cf.groupByDateCount = cf.byDate.group();
-    cf.groupByAdm1Sum = cf.byAdm1.group().reduceSum(function(d) {return d['#value+usd'];});
+    cf.groupByAdm1Sum = cf.byAdm1.group().reduceSum(function(d) {return d['#value'];});
     cf.groupByAdm1Count = cf.byAdm1.group();
-    cf.groupByMktSum = cf.byMkt.group().reduceSum(function(d) {return d['#value+usd'];});
+    cf.groupByMktSum = cf.byMkt.group().reduceSum(function(d) {return d['#value'];});
     cf.groupByMktCount = cf.byMkt.group(); 
     return cf;
 }
@@ -787,7 +787,7 @@ function getProductDataByCountryID(adm0_URL,cm_id,um_id,adm0_name,adm1_name,mkt_
 
 function getProductsByCountryID(adm0_code,adm0_name,adm0_URL){
 
-    let hxlProxyURL = 'https://proxy.hxlstandard.org/data.json?dest=data_edit&filter01=count&count-tags01=%23item%2Bname%2C%23date%2Citem%2Bunit&count-type01-01=average&count-pattern01-01=%23value%2Busd&count-header01-01=Count&count-column01-01=%23value%2Baverage&filter02=sort&sort-tags02=%23item%2Bname%2C%23item%2Bunit&strip-headers=on&url='+adm0_URL;
+    let hxlProxyURL = 'https://proxy.hxlstandard.org/data.json?dest=data_edit&filter01=count&count-tags01=%23item%2Bname%2C%23date%2Citem%2Bunit&count-type01-01=average&count-pattern01-01=%23value&count-header01-01=Count&count-column01-01=%23value%2Baverage&filter02=sort&sort-tags02=%23item%2Bname%2C%23item%2Bunit&strip-headers=on&url='+adm0_URL;
 
     $.ajax({
       type: 'GET',
