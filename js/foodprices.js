@@ -113,7 +113,9 @@ function generateSparklines(results,adm0_code,adm0_name,adm0_URL){
             if(data!==[]){
                 generateSparkline(numProd,data,topMonth);
                 $('#product_' + numProd).on('click',function(){
-                    getProductDataByCountryID(adm0_URL,d['#item+name'],d['#item+unit'],adm0_name,'','');
+                    let product = $(this).attr('dataitem');
+                    let unit = $(this).attr('dataunit');
+                    getProductDataByCountryID(adm0_URL,product,unit,adm0_name,'','');
                 });
             }
             numProd++
@@ -125,6 +127,11 @@ function generateSparklines(results,adm0_code,adm0_name,adm0_URL){
         data.push(datum);
     });
     generateSparkline(numProd,data,topMonth);
+    $('#product_' + numProd).on('click',function(){
+        let product = $(this).attr('dataitem');
+        let unit = $(this).attr('dataunit');
+        getProductDataByCountryID(adm0_URL,product,unit,adm0_name,'','');
+    });
 }
 
 function generateSparkline(numProd,data,topMonth){
