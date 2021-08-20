@@ -1,14 +1,19 @@
 function initMap(){
     
-    var base_osm = L.tileLayer(
-            'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    var base_tiles = L.tileLayer(
+            'https://data.humdata.org/mapbox-base-tiles/{z}/{x}/{y}.png',{
+            attribution: '&copy; OpenStreetMap contributors'}
+    );
+
+    var base_names = L.tileLayer(
+            'https://data.humdata.org/mapbox-layer-tiles/{z}/{x}/{y}.png',{
             attribution: '&copy; OpenStreetMap contributors'}
     );
           
     var map = L.map('map', {
         center: [0,0],
         zoom: 2,
-        layers: [base_osm]
+        layers: [base_tiles,base_names]
     });
     
     map.scrollWheelZoom.disable();
